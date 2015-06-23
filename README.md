@@ -3,6 +3,7 @@
 A set of codes for computing H line profiles has been developed by myself and Nik Piskunov, and was presented at IAU 210, Modelling Stellar Atmospheres, in Uppsala June 2002. There is clearly a need for freely available code to compute these opacities. Codes such as HLINOP and BALMER9 have been provided by Kurucz and Peterson (http://cfaku5.harvard.edu/) in the 1970's based on the broadening theories of the time. Since then, understanding of H line broadening has improved significantly and so there is a need to update these codes. Two computer codes have been produced, namely:
 
 HLINPROF: For detailed, accurate calculation of lower Balmer line profiles, suitable for detailed analysis of Balmer lines.
+
 HLINOP: For approximate, quick calculation of any line of neutral H, suitable for model atmosphere calculations.
 
 You can download the codes here, which are packaged with the SYNTH spectral synthesis program by Nik Piskunov.
