@@ -1,0 +1,12 @@
+
+.DS_Store
+
+*.o
+
+SYNTH/synth.f_090708
+
+SYNTH/hlincodes.tar_aug26_2003
+
+SYNTH/maketar
+
+SYNTH/hlincodes.tar

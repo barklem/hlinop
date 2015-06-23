@@ -1,0 +1,872 @@
+c      integer function myh(code, sig, stat)
+c      integer code, sig, stat(5)
+c      call abort()
+c      end
+
+      PROGRAM SYNTH
+C
+C   THIS PROGRAM CALCULATES SYNTHETICAL SPECTRUM
+C   THE PROGRAM CAN DEAL WITH A SET OF LINES IN A NUMBER OF SPECTRAL
+C   REGIONS
+C
+C   Author: N.Piskunov
+C
+C   LAST UPDATE: November 23, 1998
+C
+      INCLUDE 'SIZES.SYN'
+      INCLUDE 'COMMONS.SYN'
+      LOGICAL DEPTH_FLAG   
+C
+c      external myh
+c      ie=ieee_handler('set','division',myh)
+c
+      CALL INPUT(IGRAPH,DEPTH_FLAG)
+      CALL INIT
+      CALL TRANSF(IGRAPH,DEPTH_FLAG)
+      CLOSE(11)
+      STOP
+      END
+
+
+      SUBROUTINE INPUT(IGRAPH,DEPTH_FLAG)
+C
+C   THIS SUBROUTINE READS DATA IN FOLLOWING ORDER:
+C
+C   - CONTROL DATA, MODEL FILENAME AND LINE PARAMETERS (UNIT #5);
+C   - MODEL ATMOSPHERE(S) DATA (UNIT #2).
+C
+C   Author: N.Piskunov
+C
+C   LAST UPDATE: November 23, 1998
+C
+      INCLUDE 'SIZES.SYN'
+      INCLUDE 'COMMONS.SYN'
+C
+      PARAMETER (MAXREF=100)
+      CHARACTER*80 STREAM,MONAME,ELNAME*8,ELNAMC*8,COMPR,
+     *             STRUPR,SREF,OUT,SREFTB(MAXREF)
+      LOGICAL DEPTH_FLAG
+C
+C   WFIRST - WAVELENGTH TO START WITH (ANGSTREMS);
+C   WLAST  - LAST WAVELENGTH (ANGSTREMS, MUST BE LARGER WFIRST);
+C   NLINES - NUMBERS OF SPECTRAL LINES;
+C   ELNAME - ELEMENT AND IONIZATION (MUST BE IN QUOTES, EXMPL.: 'FE 2');
+C   WLCENT - UNSHIFTED CENTRAL WAVELENGTH (ANGSTREMS);
+C   VTURB  - MICROTURBULENT VELOCITY (KM/S);
+C   EXCIT  - LOW LEVEL EXCITATION POTENTIAL IN EV;
+C   GFLOG  - LOG(GF);
+C   GAMRAD - RADIATION DAMPING (C1);
+C   GAMQST - QUADRATIC STARK DUMPING (C4);
+C   GAMVW  - VAN DER WAALS DUMPING (C6);
+C   XLANDE - MEAN LANDE FACTOR (NOT USED);
+C   MONAME - MODEL ATMOSPHERE FILENAME (EXAMPLE: K9000);
+C   ELABUN - NEW ELEMENT ABUNDANCE LOG10(NELEMENT/NTOTAL), UPDATES
+C            THE DEFAULT VALUE STORED WITH MODEL ATMOSPHERE.
+C   GRAPHI = 'PLOT'   - FULL GRAPHICS
+C          = 'NOPLOT' - NO GRAPHICS
+C
+      CALL SHOW_VER()
+C
+      IARG=1
+      CALL GETARG(IARG,STREAM)
+  1   IF(STREAM.EQ.' ') THEN
+        WRITE(*,'('' Enter input filename ? ... '')')
+        READ(*,'(A)',END=6,ERR=8) STREAM
+      END IF
+      OPEN(1,FILE=STREAM,STATUS='OLD',IOSTAT=IERR)
+      IF(IERR.NE.0) THEN
+        WRITE(*,*) ' CAN''T OPEN INPUT DATA FILE'
+        IF(STREAM.NE.' ') THEN
+          STREAM=' '
+          GO TO 1
+        ELSE
+          STOP
+        END IF
+      END IF
+      I1=-1
+      I2=LEN(STREAM)
+      DO 2 I=LEN(STREAM),1,-1
+      IF(STREAM(I:I).EQ.' ') THEN
+        I2=I-1
+        I1=-1
+      END IF
+      IF(STREAM(I:I).EQ.'.'.AND.I1.LT.0) I1=I
+   2  CONTINUE
+      IF(I1.GT.0) THEN
+        I1=MIN(I1,LEN(OUT)-3)
+        OUT=STREAM(1:I1)//'prf'
+        I2=I1+3
+      ELSE
+        I2=MIN(I2,LEN(OUT)-4)
+        OUT=STREAM(1:I2)//'.prf'
+        I2=I2+4
+      END IF
+C
+      READ(1,*,END=6,ERR=9) WFIRST,WLAST,NLINES
+      IF(WFIRST.GE.WLAST.OR.WFIRST.LE.0.0.OR.WLAST.LE.0.) THEN
+        WRITE(*,*) ' WRONG WAVELENGTH LIMITS'
+        STOP
+      END IF
+      IF(NLINES.GT.LINSIZ) THEN
+        WRITE(*,*) ' TO MANY SPECTRAL LINES: ', NLINES
+        STOP
+      END IF
+C
+C  SKIP COMMENTS
+C
+      READ(1,'(A)',END=6,ERR=10) SREF
+      READ(1,'(A)',END=6,ERR=9 ) SREF
+C
+C  This part takes care of the new VALD referencing system while
+C  writing the references for ROTATE as before. The reference
+C  put out is the one for gf value.
+C
+      NREF=0
+   3  READ(1,'(A)',IOSTAT=IEND) SREF
+      SREF=COMPR(SREF)
+      SREF=STRUPR(SREF)
+      IF(IEND.EQ.0.AND.SREF(1:11).NE.'REFERENCES:') GO TO 3
+      IF(SREF(1:11).EQ.'REFERENCES:') THEN
+   4    READ(1,'(A)',IOSTAT=IEND) SREF
+        CALL NOBLNK(SREF,J1,J2)
+        IF(IEND.EQ.0.AND.J1.LT.J2.AND.NREF.LT.MAXREF) THEN
+          NREF=NREF+1
+          SREFTB(NREF)=SREF(5:LEN(SREF))
+          GO TO 4
+        END IF
+      END IF
+      REWIND 1
+C
+C  Read line list again
+C
+      READ(1,*,END=6,ERR=9) WFIRST,WLAST,NLINES
+      READ(1,'(A)',END=6,ERR=10) SREF
+      READ(1,'(A)',END=6,ERR=9 ) SREF
+C
+C  OPEN OUTPUT FILE #11
+C
+      CALL GETARG(IARG+1,STREAM)
+      IF(STREAM.NE.' ') THEN
+        OUT=STREAM
+        I2=INDEX(OUT,' ')
+      ELSE
+        WRITE(*,'('' Enter output filename (Default: '',A,'') '')')
+     *        OUT(1:I2)
+        READ(*,'(A)') STREAM
+      END IF
+      IF(STREAM.EQ.' ') THEN
+        OPEN(11,FILE=OUT,STATUS='UNKNOWN',FORM='FORMATTED')
+      ELSE
+        OPEN(11,FILE=STREAM,STATUS='UNKNOWN',FORM='FORMATTED')
+      END IF
+C
+C  OUTPUT LINE LIST FOR ROTATE
+C
+      WRITE(11,'(I4,'' - number of spectral lines'')') NLINES
+C
+C  LOOP OVER SPECTRAL LINES IN A GIVEN SPECTRAL INTERVAL
+C
+      DO 5 LINE=1,NLINES
+      READ(1,*,END=6,ERR=11) ELNAME,WLCENT(LINE),EXCIT(LINE),
+     *                       VTURB(LINE),GF(LINE),GAMRAD(LINE),
+     *                       GAMQST(LINE),GAMVW(LINE),XLANDE(LINE),
+     *                       RC,SREF
+      SREFGF(LINE)=SREF
+      IF(NREF.GT.0) THEN
+        READ(SREF,'(8X,I4)',IOSTAT=IERR) IREF
+        IF(IERR.EQ.0.AND.IREF.GT.0.AND.IREF.LE.NREF)
+     *    SREFGF(LINE)=SREFTB(IREF)
+      END IF
+C
+C  PARSE ELNAME INTO ELEMENT NUMBER (IELEM) AND IONIZATION STAGE (ION)
+C
+      ELNAMC=COMPR(ELNAME)
+      ELEMC(LINE)=ELNAME
+      CALL GETELM(ELNAMC,LINE)
+c      CALL NOBLNK(SREF,J1,J2)
+c      WRITE(11,200) WLCENT(LINE),ELNAME,EXCIT(LINE),
+c     *              VTURB(LINE),GF(LINE),GAMRAD(LINE),
+c     *              GAMQST(LINE),GAMVW(LINE),XLANDE,RC,
+c     *              SREF(J1:J2)
+c 200  FORMAT(F10.4,',''',A6,''',',F8.4,',',F4.1,',',F7.3,',',
+c     *       F8.3,',',F8.3,',',F8.3,',',F8.3,',',F7.3,
+c     *          ', ''',A,'''')
+   5  CONTINUE
+C
+C  READ IN MODEL ATMOSPHERE
+C
+      READ(1,*,END=6,ERR=7) MONAME
+      MONAME=COMPR(MONAME)
+      OPEN(2, FILE=MONAME, STATUS='OLD',ERR=7)
+      CALL RDMODL
+      CLOSE(2)
+C
+C  READ IN ABUNDANCES
+C
+      CALL RDABND
+C
+C  READ FLAGS for on-line graphics and formation depth (if any)
+C
+      IGRAPH=0
+      DEPTH_FLAG=.FALSE.
+      READ(1,*,IOSTAT=IERR) STREAM
+      STREAM=COMPR(STREAM)
+      STREAM=STRUPR(STREAM)
+      IF(IERR.EQ.0.AND.STREAM(1: 4).EQ.'PLOT') IGRAPH=1
+      IF(IERR.EQ.0.AND.STREAM(1:14).EQ.'FORMATIONDEPTH')
+     *   DEPTH_FLAG=.TRUE.
+      READ(1,*,IOSTAT=IERR) STREAM
+      STREAM=COMPR(STREAM)
+      STREAM=STRUPR(STREAM)
+      IF(IERR.EQ.0.AND.STREAM(1: 4).EQ.'PLOT') IGRAPH=1
+      IF(IERR.EQ.0.AND.STREAM(1:14).EQ.'FORMATIONDEPTH')
+     *   DEPTH_FLAG=.TRUE.
+      CLOSE(1)
+      RETURN
+C
+C  END-OF-FILE
+C
+   6  WRITE(*,*) ' END-OF-FILE DURING MAIN INPUT'
+      STOP
+C
+C  ERROR IN MODEL FILENAME
+C
+   7  WRITE(*,*) ' WRONG MODEL DATA FILE NAME:',MONAME
+      STOP
+C
+C  INPUT ERRORS:
+C
+   8  WRITE(*,*) ' I DON''T UNDERSTAND INPUT FILE NAME. TRY AGAIN'
+      GO TO 1
+   9  WRITE(*,*) ' ERROR in the first line of input file'
+      STOP
+  10  WRITE(*,*) ' ERROR reading comment lines (2 and 3) in input file'
+      STOP
+  11  WRITE(*,*) ' ERROR reading spectral line #',LINE,ELNAME
+      STOP
+      END
+
+      SUBROUTINE SHOW_VER()
+C
+C  2.6  31.08.2005 Table reading version of HLINPROF was replaced by the
+C       version where all hydrogen line tables are included in the
+C       DATA statements
+C
+      CHARACTER*(*) VERSION,VERDATE
+      INCLUDE 'VERSION'
+C
+      WRITE(*,*) 'SYNTH Version '//VERSION//'  '//VERDATE
+      WRITE(*,*) 'Written by Nikolai Piskunov (piskunov@astro.uu.se)'
+C
+      RETURN
+      END
+
+
+      CHARACTER*(*) FUNCTION COMPR(NAME)
+C
+C  THIS FUNCTION ELLIMINATES SPACES INSIDE STRING 'NAME'.
+C  ALL CHARACTERS OTHER THAN SPACES ARE MOVED TO THE LEFT.
+C  A NEW STRING IS PADDED TO THE RIGHT WITH SPACES.
+C
+C   Author: N.Piskunov
+C
+C   LAST UPDATE: January 12, 1989
+C
+      CHARACTER*(*) NAME
+C
+      L1=LEN(NAME)
+      L2=LEN(COMPR)
+      J=1
+      DO 1 I=1,L1
+      IF(NAME(I:I).NE.' '.AND.J.LE.L2) THEN
+          COMPR(J:J)=NAME(I:I)
+          J=J+1
+      END IF
+   1  CONTINUE
+      IF(J.LE.L2) COMPR(J:L2)=' '
+      RETURN
+      END
+
+      CHARACTER*(*) FUNCTION STRUPR(NAME)
+C
+C  THIS FUNCTION CONVERTS A STRING NAME TO THE UPPER CASE CHARACTERS
+C
+C  AUTHOR: N.Piskunov
+C
+C  LAST UPDATE: Mars 9, 1992
+C
+      CHARACTER NAME*(*), TABLE(26)*2
+      SAVE TABLE
+      DATA TABLE/
+     * 'aA','bB','cC','dD','eE','fF','gG','hH','iI','jJ','kK','lL','mM',
+     * 'nN','oO','pP','qQ','rR','sS','tT','uU','vV','wW','xX','yY','zZ'/
+      L=MIN(LEN(NAME), LEN(STRUPR))
+      DO 2 I=1,L
+        DO 1 J=1,26
+          IF(NAME(I:I).EQ.TABLE(J)(1:1)) THEN
+            STRUPR(I:I)=TABLE(J)(2:2)
+            GO TO 2
+          END IF
+   1    CONTINUE
+        STRUPR(I:I)=NAME(I:I)
+   2  CONTINUE
+      RETURN
+      END
+
+      SUBROUTINE NOBLNK(SLINE,JREF1,JREF2)
+C
+C  Find first and last non-black characters in a string
+C
+C  AUTHOR: N.Piskunov
+C
+C  LAST UPDATE: November 28, 1996
+C
+      CHARACTER*(*) SLINE
+C
+      DO 1 I=1,LEN(SLINE)
+      IF(SLINE(I:I).NE.' ') THEN
+        JREF1=I
+        GO TO 2
+      END IF
+   1  CONTINUE
+      JREF1=1
+   2  DO 3 I=LEN(SLINE),1,-1
+      IF(SLINE(I:I).NE.' ') THEN
+        JREF2=I
+        GO TO 4
+      END IF
+   3  CONTINUE
+      JREF2=1
+   4  RETURN
+      END
+
+      BLOCK DATA
+C
+C  STORE CHEMICAL ELEMENTS NAMES AND MASSES
+C
+      INCLUDE 'SIZES.SYN'
+      INCLUDE 'COMMONS.SYN'
+      DATA ELEMEN/
+C       1    2    3    4    5    6    7    8    9    10   11   12
+     1 'H ','He','Li','Be','B ','C ','N ','O ','F ','Ne','Na','Mg',
+     2 'Al','Si','P ','S ','Cl','Ar','K ','Ca','Sc','Ti','V ','Cr',
+     3 'Mn','Fe','Co','Ni','Cu','Zn','Ga','Ge','As','Se','Br','Kr',
+     4 'Rb','Sr','Y ','Zr','Nb','Mo','Tc','Ru','Rh','Pd','Ag','Cd',
+     5 'In','Sn','Sb','Te','I ','Xe','Cs','Ba','La','Ce','Pr','Nd',
+     6 'Pm','Sm','Eu','Gd','Tb','Dy','Ho','Er','Tm','Yb','Lu','Hf',
+     7 'Ta','W ','Re','Os','Ir','Pt','Au','Hg','Tl','Pb','Bi','Po',
+     8 'At','Rn','Fr','Ra','Ac','Th','Pa','U ','Np','Pu','Am','Cm',
+     9 'Bk','Cf','Es'/
+      DATA AMASS/
+     1   1.008,  4.003,  6.941,  9.012, 10.811, 12.011, 14.007, 15.999,
+     2  18.998, 20.179, 22.990, 24.305, 26.982, 28.086, 30.974, 32.060,
+     3  35.453, 39.948, 39.102, 40.080, 44.956, 47.900, 50.941, 51.996,
+     4  54.938, 55.847, 58.933, 58.710, 63.546, 65.370, 69.720, 72.590,
+     5  74.922, 78.960, 79.904, 83.800, 85.468, 87.620, 88.906, 91.220,
+     6  92.906, 95.940, 98.906,101.070,102.905,106.400,107.868,112.400,
+     7 114.820,118.690,121.750,127.600,126.905,131.300,132.905,137.340,
+     8 138.906,140.120,140.908,144.240,146.000,150.400,151.960,157.250,
+     9 158.925,162.500,164.930,167.260,168.934,170.040,174.970,178.490,
+     A 180.948,183.850,186.200,190.200,192.200,195.090,196.967,200.590,
+     B 204.370,207.190,208.981,210.000,210.000,222.000,223.000,226.025,
+     C 227.000,232.038,230.040,238.029,237.048,242.000,242.000,245.000,
+     D 248.000,252.000,253.000/
+C
+      END
+
+      SUBROUTINE RDABND
+C
+C  THIS SUBROUTINE READS THE ELEMENT ABUNDANCES IN FORM:
+C
+C  'Elem1_name: Abund_value', 'Elem2_name: Abund_value', ..., 'END'
+C
+C  UNTILL 'END' IS ENCOUNTERED
+C
+C   Author: N.Piskunov
+C
+C   LAST UPDATE: July 14, 1990
+C
+      PARAMETER (LNGTH=80)
+      CHARACTER ELABUN*12, STRNG1*(LNGTH), STRNG2*(LNGTH), COMPR*(LNGTH)
+C
+C  READ NEXT STRING
+C
+   1  READ(1,'(A)',END=3) STRNG1
+C
+C  COMPRESS THE STRING AND CONVERT IT TO UPPER CASE
+C
+      STRNG2=COMPR(STRNG1)
+C
+C  PARSE STRING
+C
+      I2=0
+   2  I0=INDEX(STRNG2(I2+1:LNGTH),'''')
+      I1=I0+I2
+      I2=INDEX(STRNG2(I1+1:LNGTH),'''')+I1
+C
+C  CHECK IF THE REST OF THE LINE IS EMPTY
+C
+      IF(I0.EQ.0) GO TO 1
+      IF(I2.LE.I1+1) GO TO 3
+      ELABUN=STRNG2(I1+1:I2-1)
+C
+C  CHECK IF THE LAST ABUNDANCE WAS PROCESSED
+C
+      IF(ELABUN.EQ.'END') RETURN
+C
+C  GET NEXT ABUNDANCE
+C
+      CALL GETABN(ELABUN)
+      GO TO 2
+C
+C  UNCORRECT FORMAT
+C
+   3  WRITE(*,*) ' UNCORRECT FORMAT OR EOF ENCOUNTERED WHILE',
+     *           ' READING ABUNDANCES'
+      STOP
+      END
+
+
+      SUBROUTINE GETELM(ELNAME,LINE)
+C
+C  THIS SUBROUTINE PARSES ELEMENT NAME INTO ELEMENT NUMBER (IELEM)
+C  AND IONIZATION STAGE (ION)
+C
+C   Author: N.Piskunov
+C
+C   LAST UPDATE: September 23, 1993
+C
+      INCLUDE 'SIZES.SYN'
+      INCLUDE 'COMMONS.SYN'
+      CHARACTER ELNAME*(*), NMBRS(9)*1, STRUPR*2
+      SAVE NMBRS
+C
+      DATA NMBRS/'1','2','3','4','5','6','7','8','9'/
+C
+      L=2
+      ION(LINE)=1
+      IF(ELNAME(2:2).EQ.' ') THEN
+        L=1
+        ION(LINE)=1
+      ELSE IF(ELNAME(3:3).EQ.' ') THEN
+        DO 1 I=1,9
+        IF(ELNAME(2:2).EQ.NMBRS(I)) THEN
+          L=1
+          ION(LINE)=I
+        END IF
+   1    CONTINUE
+      ELSE
+        DO 2 I=1,9
+        IF(ELNAME(3:3).EQ.NMBRS(I)) THEN
+          L=2
+          ION(LINE)=I
+        END IF
+   2    CONTINUE
+      END IF
+C
+C  CHECK FOR ERRORS
+C
+      IF(ION(LINE).LT.1.OR.ION(LINE).GT.IONSIZ) THEN
+        WRITE(*,*) ' WRONG IONIZATION STAGE: ', ION(LINE)
+        STOP
+      END IF
+      IF(L.EQ.1) ELNAME(2:2)=' '
+      DO 3 I=1,99
+      IF(STRUPR(ELNAME(1:2)).EQ.STRUPR(ELEMEN(I))) THEN
+        IELEM(LINE)=I
+        RETURN
+      END IF
+   3  CONTINUE
+C
+      WRITE(*,*) ' WRONG ELEMENT NAME: ', ELNAME(1:2)
+      STOP
+C
+      END
+
+
+      SUBROUTINE GETABN(ELNAME)
+C
+C  THIS ENTRY GETS A NEW ABUNDANCE FOR A GIVEN ELEMENT NAME.
+C  THE INPUT STRING "ELNAME" MUST HAVE A FORMAT:
+C
+C  Element_name:Abundance
+C
+C   Author: N.Piskunov
+C
+C   LAST UPDATES: 26-Jan-1992 written
+C                 23-May-2006 fixed the truncation occuring when
+C                             abundance has more than 4 decimals
+C
+      INCLUDE 'SIZES.SYN'
+      INCLUDE 'COMMONS.SYN'
+      CHARACTER ELNAME*(*)
+      CHARACTER*2 TMP, STRUPR
+      REAL XABUND
+      INTEGER L, LL
+C
+      LL=LEN(ELNAME)
+      L=INDEX(ELNAME,':')-1
+      IF(L.LE.0) THEN
+        WRITE(*,*) 'ERROR IN THE ELEMENT NAME: ',ELNAME
+        STOP
+      END IF
+      TMP=ELNAME(1:L)
+      TMP=STRUPR(TMP)
+      DO 1 I=1,99
+      IF(TMP.EQ.STRUPR(ELEMEN(I))) THEN
+        ELNAME(1:LL-L-1)=ELNAME(L+2:LL)
+        ELNAME(LL-L:LL)=' '
+        READ(ELNAME,*) XABUND
+        ABUND(I)=XABUND
+        RETURN
+      END IF
+   1  CONTINUE
+C
+      WRITE(*,*) ' WRONG ELEMENT NAME: ', ELNAME
+      STOP
+      END
+
+
+      SUBROUTINE INIT
+C
+C  THIS SUBROUTINE INITIALIZES SOME OF COMMON BLOCKS.
+C  THE MOST IMPORTANT THING IS A CONTINUOUS OPACITY
+C  TABLE STORED IN /OPAC/.
+C
+C   Author: N.Piskunov
+C
+C   LAST UPDATE: September 23, 1993
+C
+      INCLUDE 'SIZES.SYN'
+      INCLUDE 'COMMONS.SYN'
+      DOUBLE PRECISION PI
+c      DOUBLE PRECISION TAU
+      PARAMETER (PI=3.14159265358979D0)
+C
+C  CONVERT ABUND FROM LOG INTO FRACTION
+C
+      DO 1 I=1,99
+  1   IF(ABUND(I).LT.0) ABUND(I)=10.**ABUND(I)
+C
+C Prepare spline interpolation in the model atmosphere
+C
+      CALL SPLCOE(RHOX,T,     SP_T,  NRHOX)
+      CALL SPLCOE(RHOX,XNA,   SP_NA, NRHOX)
+      CALL SPLCOE(RHOX,XNE,   SP_NE, NRHOX)
+      CALL SPLCOE(RHOX,RHO,   SP_RHO,NRHOX)
+C
+C  CALCULATE CONTINUOUS OPACITY AND ION FRACTIONS
+C
+      CALL IONTBL
+C
+C  CALCULATE CONTINUOUS OPACITY
+C
+      CALL CONTOP(1)
+      IF(MOTYPE.EQ.1) CALL CONTOP(0)
+      CALL SPLCOE(RHOX,COPBLU,SP_CBL,NRHOX)
+      CALL SPLCOE(RHOX,COPRED,SP_CRD,NRHOX)
+      IF(MOTYPE.EQ.1) CALL SPLCOE(RHOX,COPSTD,SP_CST,NRHOX)
+
+c      do 11 im=2,nrhox
+c      IF(IM.NE.NRHOX) THEN
+c        NLIM=NSMTAU-1
+c      ELSE
+c        NLIM=NSMTAU
+c      END IF
+c      DO 11 ISMALL=0,NLIM
+c      ITAUSM=ITAUSM+1
+c      TAU=RHOX(IM-1)+HSMTAU(IM-1)*ISMALL
+c      TEMPER=SPLINT(IM-1,IM,RHOX,T,     SP_T,  NRHOX,TAU)
+c      OPCONB=SPLINT(IM-1,IM,RHOX,COPBLU,SP_CBL,NRHOX,TAU)
+c      OPCONR=SPLINT(IM-1,IM,RHOX,COPRED,SP_CRD,NRHOX,TAU)
+c      XNATOM=SPLINT(IM-1,IM,RHOX,XNA,   SP_NA ,NRHOX,TAU)
+c      XNELEC=SPLINT(IM-1,IM,RHOX,XNE,   SP_NE ,NRHOX,TAU)
+c      XXRHO =SPLINT(IM-1,IM,RHOX,RHO,   SP_RHO,NRHOX,TAU)
+c      write(*,*) TAU,TEMPER,XNATOM,XNELEC,XXRHO,OPCONB,OPCONR
+c  11  continue
+c      stop
+
+C
+C  CHECK FOR AUTOIONIZATION LINES
+C
+c      IOPEN=0
+      DO 2 LINE=1,NLINES
+      MARK(LINE)=.FALSE.
+      WLEFT(LINE)=WFIRST
+      WRIGHT(LINE)=WLAST
+      AUTOION(LINE)=.FALSE.
+      IF(EXCIT(LINE).GT.100.) EXCIT(LINE)=EXCIT(LINE)/8065.47
+      GF(LINE)=10.**GF(LINE)
+      EXUP=EXCIT(LINE)+1./(WLCENT(LINE)*8065.47E-8)
+      IF(EXUP.GE.POTION(IELEM(LINE),ION(LINE))) AUTOION(LINE)=.TRUE.
+c      IF(EXUP.GE.POTION(IELEM(LINE),ION(LINE))) THEN
+C
+C  Do that for Ca only
+C
+c        IF(IELEM(LINE).EQ.20) AUTOION(LINE)=.TRUE.
+c        AUTOION(LINE)=.TRUE.
+c        IF(IOPEN.EQ.0) THEN
+c          OPEN(12,FILE='SYNTH.LOG',STATUS='UNKNOWN',FORM='FORMATTED')
+c          IOPEN=1
+c        END IF
+c        IF(GAMQST(LINE).LE.0.0.OR.
+c     *     GAMVW(LINE) .LE.0.0) THEN
+c          WRITE(12,'(''Skipped autoinization line # '',I4,
+c     *     '' because Stark or van der Waals damping is unknown'')')
+c     *     LINE
+c          MARK(LINE)=.TRUE.
+c        ELSE
+c          WRITE(12,'(''Will compute autoinization line '',A2,I2,F10.4)')
+c     *          ELEMEN(IELEM(LINE)),ION(LINE),WLCENT(LINE)
+c        END IF
+c      END IF
+      IF(GAMRAD(LINE).LT.40.0.AND.GAMRAD(LINE).GT.0.0)
+     *                        GAMRAD(LINE)=10.**GAMRAD(LINE)
+      IF(IELEM(LINE).GT.1) THEN
+c        IF(.NOT.AUTOION(LINE).AND.GAMQST(LINE).LT.0.0)
+c     *                         GAMQST(LINE)=10.**GAMQST(LINE)
+        IF(GAMQST(LINE).LT.0.0) GAMQST(LINE)=10.**GAMQST(LINE)
+C
+C  We have a special case when we the temperature dependent van der Waals
+C  broadening parameters. They are packed as SIGMA.ALPHA, so it is > 0
+C
+        ANSTEE(LINE)=.FALSE.
+        IF(GAMVW(LINE).LT.0.0) THEN
+          GAMVW(LINE)=10.**GAMVW(LINE)
+        ELSE IF(GAMVW(LINE).GT.10.0) THEN
+          ANSTEE(LINE)=.TRUE.
+        END IF
+      END IF
+  2   CONTINUE
+c      IF(IOPEN.EQ.0) CLOSE(12)
+C
+C IF YOU EVER REMEMBER SOMETHING THAT CAN BE PRECALCULATED,
+C JUST PUT IT IN HERE!!!
+C
+      RETURN
+      END
+
+      SUBROUTINE SPLCOE(X,Y,Y2,N)
+C
+C  Computes second derivative approximations for cubic spline interpolation
+C
+      INCLUDE 'SIZES.SYN'
+      REAL*8 X(N),U(MOSIZE),SIG,P,YY1,YY2,YY3
+      REAL Y(N),Y2(N)
+C
+C  Natural lower boundary condition
+C
+      Y2(2)=0.
+      U(2)=0.
+      DO 1 I=3,N-1
+      SIG=(X(I)-X(I-1))/(X(I+1)-X(I-1))
+      P=SIG*Y2(I-1)+2.
+      Y2(I)=(SIG-1.D0)/P
+      YY1=LOG(Y(I-1))
+      YY2=LOG(Y(I  ))
+      YY3=LOG(Y(I+1))
+      U(I)=(6.D0*((YY3-YY2)/(X(I+1)-X(I))-(YY2-YY1)/
+     /     (X(I)-X(I-1)))/(X(I+1)-X(I-1))-SIG*U(I-1))/P
+  1   CONTINUE
+C
+C  Natural upper boundary condition
+C
+      Y2(N)=0.
+      DO 2 I=N-1,2,-1
+  2   Y2(I)=Y2(I)*Y2(I+1)+U(I)
+      Y2(1)=0.
+C
+      RETURN
+      END
+
+      FUNCTION SPLINT(KLO,KHI,XA,YA,Y2A,N,X)
+C
+C  Performs cubic spline interpolation
+C
+      REAL*8 X,XA(N),A,B,H
+      REAL Y2A(N),YA(N)
+C
+      H=XA(KHI)-XA(KLO)
+      A=(XA(KHI)-X)/H
+      B=(X-XA(KLO))/H
+      Y1=LOG(YA(KLO))
+      Y2=LOG(YA(KHI))
+      Y=A*Y1+B*Y2+((A*A-1.D0)*A*Y2A(KLO)+
+     +             (B*B-1.D0)*B*Y2A(KHI))*(H*H)/6.D0
+      SPLINT=EXP(Y)
+C
+      RETURN
+      END
+
+      SUBROUTINE IONTBL
+C
+C  THIS FUNCTION CALCULATES A TABLE OF IONIZATION POTENTIALS AND
+C  IONIZATION FRACTIONS FOR ALL ELEMENTS AT A GRID OF OPTICAL DEPTHS
+C  WHICH HAS NSMTAU CONSTANT STEPS BETWEEN EACH PAIR OF NODES OF
+C  THE ORIGINAL MODEL ATMOSPHERE MODEL.
+C  IONIZATION POTENTIALS ARE STORED AS POTION. FRACTIONS DEVIDED BY
+C  PARTITION FUNCTION ARE STORED AS FRACT. FOR HYDROGEN AND HELIUM
+C  ONLY FRACTIONS (WITHOUT DEVISION BY PARTITION FUNCTIONS) ARE STORED
+C
+C   Author: N.Piskunov
+C
+C   LAST UPDATE: July 12, 1990
+C
+      INCLUDE 'SIZES.SYN'
+      INCLUDE 'COMMONS.SYN'
+C
+      REAL POTI(IONSIZ),FRCT(IONSIZ)
+      DOUBLE PRECISION TAU
+C
+C  MARK UNPROCESSED ELEMENTS
+C
+      DO 1 J=1,99
+      DO 1 I=1,(MOSIZE-1)*NSMTAU+1
+   1  FRACT(J,1,I)=-1.
+C
+      ITAUSM=0
+      DO 5 IM=2,NRHOX
+C
+C  CALCULATE SMALL STEP
+C
+      HSMTAU(IM-1)=(RHOX(IM)-RHOX(IM-1))/NSMTAU
+c      IF(IM.NE.NRHOX) THEN
+        NLIM=NSMTAU-1
+c      ELSE
+c        NLIM=NSMTAU
+c      END IF
+      DO 4 ISMALL=0,NLIM
+      ITAUSM=ITAUSM+1
+      TAU=RHOX(IM-1)+HSMTAU(IM-1)*ISMALL
+C
+C  Spline interpolation
+C
+      TEMPER=SPLINT(IM-1,IM,RHOX,T,  SP_T,  NRHOX,TAU)
+      XNATOM=SPLINT(IM-1,IM,RHOX,XNA,SP_NA ,NRHOX,TAU)
+      XNELEC=SPLINT(IM-1,IM,RHOX,XNE,SP_NE ,NRHOX,TAU)
+      DO 3 LINE=1,NLINES
+      IF(FRACT(IELEM(LINE),1,ITAUSM).GE.0.0) GO TO 3
+C
+C  SAHA EQUATION
+C
+      CALL XSAHA(IELEM(LINE),TEMPER,XNELEC,XNATOM,IONSIZ,POTI,FRCT)
+c      if(ISMALL.eq.0.and.LINE.eq.4) write(*,*) 
+c     *         IM,T(IM),FRCT(1)*XNA(IM)*ABUND(IELEM(LINE)),
+c     *                  FRCT(2)*XNA(IM)*ABUND(IELEM(LINE)),ABUND(21)
+      DO 2 I=1,IONSIZ
+      POTION(IELEM(LINE),I)=POTI(I)
+   2  FRACT(IELEM(LINE),I,ITAUSM)=FRCT(I)
+   3  CONTINUE
+C
+C  HYDROGEN + FOR BROADENNING
+C
+      CALL XSAHA(1,TEMPER,XNELEC,XNATOM,IONSIZ,POTI,FRCT)
+      FRACT(1,1,ITAUSM)=FRCT(1)
+      FRACT(1,2,ITAUSM)=FRCT(2)
+      FRACT(1,3,ITAUSM)=FRCT(3)*ABUND(1)*XNATOM
+C
+C  HELIUM + FOR BROADENNING
+C
+      CALL XSAHA(2,TEMPER,XNELEC,XNATOM,IONSIZ,POTI,FRCT)
+      FRACT(2,1,ITAUSM)=FRCT(1)
+      FRACT(2,2,ITAUSM)=FRCT(2)
+      FRACT(2,3,ITAUSM)=FRCT(3)
+      FRACT(2,4,ITAUSM)=FRCT(4)*ABUND(2)*XNATOM
+   4  CONTINUE
+   5  CONTINUE
+C
+C  The deepest point is to be treated separately
+C
+      TEMPER=T(NRHOX)
+      XNATOM=XNA(NRHOX)
+      XNELEC=XNE(NRHOX)
+      ITAUSM=ITAUSM+1
+      DO 7 LINE=1,NLINES
+      IF(FRACT(IELEM(LINE),1,ITAUSM).GE.0.0) GO TO 7
+C
+C  SAHA EQUATION
+C
+      CALL XSAHA(IELEM(LINE),TEMPER,XNELEC,XNATOM,IONSIZ,POTI,FRCT)
+c      if(ISMALL.eq.0.and.LINE.eq.6) write(*,*) 
+c     *         IM,FRCT(1)*XNA(IM)*ABUND(26),FRCT(2)*XNA(IM)*ABUND(26)
+      DO 6 I=1,IONSIZ
+      POTION(IELEM(LINE),I)=POTI(I)
+   6  FRACT(IELEM(LINE),I,ITAUSM)=FRCT(I)
+   7  CONTINUE
+C
+C  HYDROGEN + FOR BROADENNING
+C
+      CALL XSAHA(1,TEMPER,XNELEC,XNATOM,IONSIZ,POTI,FRCT)
+      FRACT(1,1,ITAUSM)=FRCT(1)
+      FRACT(1,2,ITAUSM)=FRCT(2)
+      FRACT(1,3,ITAUSM)=FRCT(3)*ABUND(1)*XNATOM
+C
+C  HELIUM + FOR BROADENNING
+C
+      CALL XSAHA(2,TEMPER,XNELEC,XNATOM,IONSIZ,POTI,FRCT)
+      FRACT(2,1,ITAUSM)=FRCT(1)
+      FRACT(2,2,ITAUSM)=FRCT(2)
+      FRACT(2,3,ITAUSM)=FRCT(3)
+      FRACT(2,4,ITAUSM)=FRCT(4)*ABUND(2)*XNATOM
+C
+      RETURN
+      END
+
+
+      SUBROUTINE RDMODL
+C
+C  THIS SUBROUTINE INPUTS A MODEL ATMOSPHERE FROM FILE #1.
+C  FILE MUST START COMMENT LINE, EFFECTIVE TEMPERATURE AND
+C  GRAVITY, ABUNDANCE VALUES FOR FIRST 99 ELEMENTS AND THE NUMBER
+C  OF ROWS NRHOX. THE MODEL ITSELF GOES IN FIVE COLUMNS:
+C  INDEPENDENT DEPTH PARAMETER RHOX, TEMPERATURE T, ELECTRON
+C  NUMBER DENSITY XNE, ATOM NUMBER DENSITY XNA, DENSITY RHO.
+C  COLUMNS CAN BE SEPARATED BY COMMA OR/AND ONE OR MORE SPACES.
+C
+C   Author: N.Piskunov
+C
+C   LAST UPDATE: September 23, 1993
+C
+      INCLUDE 'SIZES.SYN'
+      INCLUDE 'COMMONS.SYN'
+      CHARACTER*256 STR,STRUPR
+      INTEGER I,I1,I2
+C
+      READ(2,'(A)',END=2) STR
+      READ(2,'(A)',END=2) STR
+      STR=STRUPR(STR)
+      I1=INDEX(STR,'T EFF=')
+      I2=INDEX(STR,'GRAV')
+      READ(STR(I1+LEN('T EFF='):I2-1),*) TEFF
+      I1=I2
+      I2=INDEX(STR,'MODEL TYPE=')
+      READ(STR(I1+LEN('GRAV='):I2-1),*) GRAV
+      I1=I2
+      I2=INDEX(STR,'WLSTD=')
+      READ(STR(I1+LEN('MODEL TYPE='):I2-1),*) MOTYPE
+      IF(MOTYPE.EQ.3) THEN
+        write(*,*) 'You are trying to use a spherical model atmosphere'
+        write(*,*) 'SYNTH is only meant for plane-parallel models'
+        stop
+      ENDIF
+      I1=I2
+      I2=LEN(STR)
+      READ(STR(I1+LEN('WLSTD='):I2),*) WLSTD
+      READ(2,*,END=2) IFOP
+      READ(2,101,END=2) ABUND,NRHOX
+C
+      IF(NRHOX.LT.3.OR.NRHOX.GT.MOSIZE) THEN
+        WRITE(*,*) ' ILLEGAL NUMBER OF POINTS IN MODEL ATMOSPHERE: ',
+     *             NRHOX
+        STOP
+      END IF
+C
+      DO 1 I=1,NRHOX
+      READ(2,*,END=2,ERR=2) RHOX(I),T(I),XNE(I),XNA(I),RHO(I)
+   1  CONTINUE
+      RETURN
+ 101  FORMAT(9(10F7.2/),9F7.2,I3)
+C
+   2  WRITE(*,*) ' END-OF-FILE ENCOUNTERED READING MODEL ATMOSPHERE'
+      STOP
+      END

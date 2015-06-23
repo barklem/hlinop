@@ -1,0 +1,15 @@
+Hydrogen line code package (Release June 2002)
+----------------------------------------------
+
+Paul Barklem and Nikolai Piskunov
+
+*PLEASE report bugs to barklem@astro.uu.se*
+
+Hydrogen line codes HLINPROF and HLINOP provided with relevant data files.  
+
+SYNTH program by Nik Piskunov also included which should compile after suitable editing of the Makefile.  An example of an input ".lin" file with example model in ".krz" format is included.  Note that "extract stellar" from VALD gives output in the ".lin" format!  The output ".prf" format is straightforward.
+
+
+
+
+
