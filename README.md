@@ -6,11 +6,13 @@ HLINPROF: For detailed, accurate calculation of lower Balmer line profiles, suit
 
 HLINOP: For approximate, quick calculation of any line of neutral H, suitable for model atmosphere calculations.
 
-You can download the codes here, which are packaged with the SYNTH spectral synthesis program by Nik Piskunov.
+You can download the codes here, which are packaged with the SYNTH spectral synthesis program by Nik Piskunov.  For *fast* implementation you may have to adapt this. For example, in many applications it will be stupid to recompute all the populations for the same model every time you change wavelength.
+
+As bound-free and bound-bound opacities are merged, this code computes both. The distinction between line and continuous opacity becomes blurred, so be careful that you are not including things twice. That goes for Rayleigh scattering off Lyman alpha also.
 
 I am extremely interested in views, comments, bug reports and suggested improvements, so please feel free to email me!
 
-Notes:
+History:
 
 19 Nov 2002: A small bug in HLINOP which allowed the wavelength to go negative if the REFLECT switch was turned on was fixed. Thanks to Kjell Eriksson for reporting it.
 
@@ -25,9 +27,5 @@ Notes:
 2 Mar 2011: Small bug for case where XHOLT4000 goes to zero fixed. Thanks to Kjell.
 
 2 March 2011: hbop.f ; A wrapper around hlinop.f to implement the occupation probability formalism of Daeppen, Anderson and Milhalas and thus can account for the merging of lines into the continuum.
-Notes:
 
-For *fast* implementation you may have to adapt this. For example, in many applications it will be stupid to recompute all the populations for the same model every time you change wavelength.
-
-As bound-free and bound-bound opacities are merged, this code computes both. The distinction between line and continuous opacity becomes blurred, so be careful that you are not including things twice. That goes for Rayleigh scattering off Lyman alpha also.
 
