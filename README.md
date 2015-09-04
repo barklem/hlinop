@@ -10,7 +10,7 @@ HBOP: A wrapper around hlinop.f to implement the occupation probability formalis
 
 The main codes are in the root directory.  An example of their application to the SYNTH spectral synthesis program by Nik Piskunov is also provided.
 
-Views, comments, bug reports and suggested improvements all welcome.
+Views, comments, bug reports and suggested improvements all welcome: paul.barklem@physics.uu.se
 
 References:
 
