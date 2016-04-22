@@ -12,6 +12,9 @@ The main codes are in the root directory.  An example of their application to th
 
 Views, comments, bug reports and suggested improvements all welcome: paul.barklem@physics.uu.se
 
+Please cite the DOI if you make use of the code in research:
+[![DOI](https://zenodo.org/badge/21607/barklem/hlinop.svg)](https://zenodo.org/badge/latestdoi/21607/barklem/hlinop)
+
 References:
 
 - Barklem, P. S., and N. Piskunov. “Hydrogen Balmer Lines as Probes of Stellar Atmospheres,” Vol. 210, 2003. http://adsabs.harvard.edu/abs/2003IAUS..210P.E28B.
