@@ -14,4 +14,4 @@ History:
 
 2 Mar 2011: hbop code added.
 
-11 July 2023: Bug fixed in LOGINT routine in HBOP.f.  Thanks to Richard Hoppe.  (Due to fact that the Gaunt factors are well behaved, impact was small, but noticeable at long wavelengths)
+11 July 2023: Bug fixed in LOGINT routine in HBOP.f.  Thanks to Richard Hoppe. 
