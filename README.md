@@ -1,5 +1,7 @@
 # HLINOP
 
+(New version with bug fix thanks to Richard Hoppe, 11 July 2023; see history.txt)
+
 A set of codes for computing hydrogen line profiles and opacities developed by Paul Barklem and Nik Piskunov.  This code was first presented at IAU 210, Modelling Stellar Atmospheres, in Uppsala June 2002 (Barklem & Piskunov 2003). There a need for codes to compute these opacities for atellar atmosphere applications. Codes such as HLINOP and BALMER9 have been provided by Kurucz and Peterson (http://kurucz.harvard.edu/) in the 1970's based on the broadening theories of the time.  Since then, understanding of H line broadening has improved and there is a need to update these codes. Three codes have been produced, namely:
 
 HLINPROF: For detailed, accurate calculation of lower Balmer line profiles, suitable for detailed analysis of Balmer lines.  This code depends on binary files containing tables and are thus provided in little- and big-endian versions.  There is also a version (_nofiles) which attempts to avoid the need for external files, but is not as well tested as the default version.
@@ -20,6 +22,7 @@ References:
 - Barklem, P. S., and N. Piskunov. “Hydrogen Balmer Lines as Probes of Stellar Atmospheres,” Vol. 210, 2003. http://adsabs.harvard.edu/abs/2003IAUS..210P.E28B.
 
 - Dappen, Werner, Lawrence Anderson, and Dimitri Mihalas. “Statistical Mechanics of Partially Ionized Stellar Plasma - The Planck-Larkin Partition Function, Polarization Shifts, and Simulations of Optical Spectra.” The Astrophysical Journal 319 (August 1, 1987): 195–206. doi:10.1086/165446.
+
 
 
 

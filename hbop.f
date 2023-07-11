@@ -415,6 +415,8 @@ C***********************************************************************
 C
 C  Does log interpolation and extrapolation of arrays X and Y
 C  of length N.  Returns value YI at XI.
+C  Assumes monotonically increasing X.
+C  Bug fix 20230711 thanks to Richard Hoppe
 C
       IMPLICIT NONE
       INTEGER N, I, J
@@ -426,10 +428,10 @@ C
       DO 10 I = 1, N
       XL(I) = LOG10(X(I))
       YL(I) = LOG10(Y(I))
-      IF ((XL(I).LT.XIL) .AND. J.EQ.0) J = I
+      IF (XL(I).LT.XIL) J = I
  10   CONTINUE
       IF (J.EQ.0) J = 1
-      IF (J.GT.N-3) J = N-3
+      IF (J.GT.N-3) J = N-2
 C
 C  polynomial 3 point interpolation or extrapolation
 C     

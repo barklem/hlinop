@@ -13,3 +13,5 @@ History:
 2 Mar 2011: Small bug for case where XHOLT4000 goes to zero fixed. Thanks to Kjell.
 
 2 Mar 2011: hbop code added.
+
+11 July 2023: Bug fixed in LOGINT routine in HBOP.f.  Thanks to Richard Hoppe.  (Due to fact that bound-free cross sections are well behaved, impact was small, but noticeable at long wavelengths)
