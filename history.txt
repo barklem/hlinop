@@ -15,3 +15,4 @@ History:
 2 Mar 2011: hbop code added.
 
 11 July 2023: Bug fixed in LOGINT routine in HBOP.f.  Thanks to Richard Hoppe. 
+12 July 2023: Small improvement to LOGINT - log-linear interpolation performs better than log-log.
