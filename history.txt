@@ -16,3 +16,5 @@ History:
 
 11 July 2023: Bug fixed in LOGINT routine in HBOP.f.  Thanks to Richard Hoppe. 
 12 July 2023: Small improvement to LOGINT - log-linear interpolation performs better than log-log.
+
+17 Dec 2025:  Added hbop_auto.f, and some small changes to hbop.f.  (Note these changes were actually made a year earlier, took some time to post to github;)).

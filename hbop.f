@@ -9,13 +9,15 @@ C  Needs the code for normalised line profiles HLINOP which can
 C  be used separately.
 C
 C  Paul Barklem, Nik Piskunov, Uppsala August 2003. 
+C  Minor updates December 2024
 C
 C  A number of parts from or based on code by Deane Peterson and Bob 
 C  Kurucz. 
 C
 C  Some contributions and significant input from Kjell Eriksson.
 C
-C  We would very much appreciate bug reports to: barklem@astro.uu.se 
+C  We would very much appreciate bug reports to: 
+C  paul.barklem@physics.uu.se 
 C
 C  Table of Contents:
 C  ------------------
@@ -105,10 +107,11 @@ C  nbf     = highest level for which the bound-free component is
 C            accounted for (limited to 15 at present). 
 C
 C  Paul Barklem, Uppsala, August 2003
+C  Dec 2024, error catch for NUP > NLEVELS added
 C
       IMPLICIT NONE
       INTEGER N, NLO(*), NUP(*), NLEVELS, I, J, NBF, NL, FF,FN
-      PARAMETER (NLEVELS = 30)  
+      PARAMETER (NLEVELS = 100)  
       PARAMETER (NBF = 6)  
       REAL NH, NHE, NE, T, CONTIN, DOP, TOTAL
       REAL NHL, NHEL, NEL, TL
@@ -186,6 +189,7 @@ C  Compute line opacity components
 C
       LINE = 0.
       DO 30 I = 1, N
+      IF (NUP(I).GT.NLEVELS) STOP 'HBOP : NUP > NLEVELS'           
       SIGMA = SF * FNM(NLO(I),NUP(I)) *
      *     HLINOP(WAVE,NLO(I),NUP(I),WAVEH(I),T,NE,NP(1),NHE,DOP)
       CHI = 0.
@@ -238,7 +242,7 @@ C***********************************************************************
       REAL*8 FUNCTION WCALC(NH, NE, NHE, NS, TEMP)	
 C  	
 C  Computes the occupation probability for a H atom in 
-C  state with effective principle quantum number NS in a plasma
+C  state with effective principal quantum number NS in a plasma
 C  enviroment with NH, NE, NHE number densities of H, ions,
 C  and He atoms respectively.  This code assumes the perturbing
 C  neutral H and He are in the ground state, (noting the hard
